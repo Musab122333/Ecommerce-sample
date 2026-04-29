@@ -1,0 +1,209 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String
+  password  String
+  avatar    String?
+  role      UserRole   @default(CUSTOMER)
+  
+  // Relations
+  orders    Order[]
+  wishlist  WishlistItem[]
+  reviews   Review[]
+  addresses Address[]
+  
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([email])
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String   @db.Text
+  price       Float
+  originalPrice Float?
+  image       String
+  images      String[]
+  category    String
+  badge       String?
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+  inStock     Boolean  @default(true)
+  quantity    Int      @default(0)
+  
+  // Relations
+  orderItems  OrderItem[]
+  wishlistItems WishlistItem[]
+  reviews     Review[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([category])
+}
+
+model Order {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  status      OrderStatus @default(PENDING)
+  subtotal    Float
+  shipping    Float
+  tax         Float
+  total       Float
+  
+  items       OrderItem[]
+  
+  // Shipping & Billing
+  shippingAddressId String?
+  shippingAddress   Address?  @relation("shipping", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  billingAddressId  String?
+  billingAddress    Address?  @relation("billing", fields: [billingAddressId], references: [id], onDelete: SetNull)
+  
+  // Payment
+  paymentId   String?
+  paymentStatus PaymentStatus @default(PENDING)
+  
+  // Tracking
+  trackingNumber String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([status])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  quantity  Int
+  price     Float
+  
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type      AddressType
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+  street1   String
+  street2   String?
+  city      String
+  state     String
+  zip       String
+  country   String
+  isDefault Boolean  @default(false)
+  
+  // Orders using this address
+  shippingOrders Order[] @relation("shipping")
+  billingOrders  Order[] @relation("billing")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+  BOTH
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  rating    Int      // 1-5
+  title     String
+  content   String   @db.Text
+  verified  Boolean  @default(false)
+  helpful   Int      @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([productId])
+  @@index([userId])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  description String?
+  image     String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
