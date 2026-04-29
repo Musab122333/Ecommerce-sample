@@ -1,17 +1,41 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BarChart3, ShoppingBag, Users, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { adminAPI } from "@/lib/api/client";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/admin/dashboard")({
   component: AdminDashboard,
 });
 
 function AdminDashboard() {
-  const stats = [
-    { label: "Total Revenue", value: "$12,458", change: "+12.5%", icon: TrendingUp, color: "text-green-500" },
-    { label: "Orders", value: "248", change: "+8.2%", icon: ShoppingBag, color: "text-blue-500" },
-    { label: "Customers", value: "1,234", change: "+5.1%", icon: Users, color: "text-purple-500" },
-    { label: "Products", value: "56", change: "+2 new", icon: BarChart3, color: "text-orange-500" },
-  ];
+  const { token } = useAuth();
+  const [stats, setStats] = useState<any[]>([]);
+  const [recent, setRecent] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!token) return;
+      try {
+        setLoading(true);
+        const res: any = await adminAPI.getDashboard(token);
+        const data = res.data;
+        setStats(data.stats || []);
+        setRecent(data.recentOrders || []);
+      } catch (err: any) {
+        setError(err.message || "Failed to load dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [token]);
+
+  if (loading) return <div>Loading dashboard...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div className="space-y-6">
@@ -20,9 +44,8 @@ function AdminDashboard() {
         <p className="text-muted-foreground mt-1">Welcome back! Here's your store overview.</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
+        {stats.map((stat: any) => (
           <div key={stat.label} className="glass-strong rounded-2xl p-6">
             <div className="flex items-start justify-between">
               <div>
@@ -38,19 +61,18 @@ function AdminDashboard() {
         ))}
       </div>
 
-      {/* Recent Orders */}
       <div className="glass-strong rounded-2xl p-6">
         <h2 className="text-xl font-bold mb-4">Recent Orders</h2>
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--glass)" }}>
+          {recent.map((o: any) => (
+            <div key={o.id} className="flex items-center justify-between p-4 rounded-lg" style={{ background: "var(--glass)" }}>
               <div>
-                <p className="font-medium">Order #{1000 + i}</p>
-                <p className="text-sm text-muted-foreground">Customer Name</p>
+                <p className="font-medium">Order #{o.id}</p>
+                <p className="text-sm text-muted-foreground">{o.user?.name || '—'}</p>
               </div>
               <div className="text-right">
-                <p className="font-medium">$249.99</p>
-                <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-500">Delivered</span>
+                <p className="font-medium">${o.total?.toFixed(2)}</p>
+                <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-500">{o.status}</span>
               </div>
             </div>
           ))}

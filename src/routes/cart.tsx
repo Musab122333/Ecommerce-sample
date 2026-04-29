@@ -1,7 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Minus, Plus, Trash2, ShoppingBag, Lock } from "lucide-react";
 import { useCart } from "@/lib/cart";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+import { ordersAPI } from "@/lib/api/client";
+import { useState } from "react";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({ meta: [{ title: "Cart — Lumen" }, { name: "description", content: "Review your selected pieces and check out securely." }] }),
@@ -29,6 +32,42 @@ function CartPage() {
       </div>
     );
   }
+
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const navigate = useNavigate();
+  const { token, isAuthenticated } = useAuth();
+
+  const handleCheckout = async () => {
+    if (items.length === 0) return;
+    // useAuth provides current token and auth state
+
+    if (!isAuthenticated || !token) {
+      navigate({ to: "/account" });
+      return;
+    }
+
+    try {
+      setLoadingCheckout(true);
+
+      const payload = {
+        items: items.map((i) => ({ productId: i.product.id, quantity: i.qty, price: i.product.price })),
+        subtotal,
+        shipping,
+        tax: 0,
+      };
+
+      const res: any = await ordersAPI.create(payload, token);
+      const order = res.data;
+      clear();
+      toast.success("Order placed — thank you!");
+      navigate({ to: "/" });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Failed to create order");
+    } finally {
+      setLoadingCheckout(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 pt-12">
@@ -71,11 +110,12 @@ function CartPage() {
             <div className="border-t border-[var(--glass-border)] pt-3 flex justify-between text-base"><span className="font-semibold">Total</span><span className="text-xl font-bold">${total.toFixed(2)}</span></div>
           </div>
           <button
-            onClick={() => toast.success("Demo checkout — connect Shopify or Stripe to process real payments.")}
-            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-primary-foreground glow-primary transition hover:scale-[1.02]"
+            onClick={handleCheckout}
+            disabled={loadingCheckout}
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold text-primary-foreground glow-primary transition hover:scale-[1.02] disabled:opacity-60"
             style={{ background: "var(--gradient-primary)" }}
           >
-            <Lock className="h-4 w-4" /> Secure checkout
+            <Lock className={`h-4 w-4 ${loadingCheckout ? 'animate-spin' : ''}`} /> {loadingCheckout ? 'Processing...' : 'Secure checkout'}
           </button>
           <p className="mt-3 text-center text-xs text-muted-foreground">256-bit SSL · Apple Pay · Cards</p>
         </aside>

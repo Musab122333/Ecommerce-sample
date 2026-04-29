@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Search, Filter } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ordersAPI } from "@/lib/api/client";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/admin/orders")({
   component: AdminOrders,
@@ -9,12 +11,27 @@ export const Route = createFileRoute("/admin/orders")({
 function AdminOrders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const { token } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const orders = [
-    { id: "ORD-001", customer: "John Doe", amount: 249.99, status: "DELIVERED", date: "2024-01-15" },
-    { id: "ORD-002", customer: "Jane Smith", amount: 459.99, status: "SHIPPED", date: "2024-01-14" },
-    { id: "ORD-003", customer: "Bob Johnson", amount: 129.99, status: "PROCESSING", date: "2024-01-13" },
-  ];
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!token) return;
+      try {
+        setLoading(true);
+        const res: any = await ordersAPI.getAllAdmin({ status: statusFilter === 'all' ? undefined : statusFilter }, token);
+        setOrders(res.data.orders || []);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load orders');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [token, statusFilter]);
 
   const statusColors: Record<string, string> = {
     PENDING: "bg-yellow-500/20 text-yellow-500",
@@ -26,10 +43,13 @@ function AdminOrders() {
   };
 
   const filtered = orders.filter(o => {
-    const matchSearch = o.customer.toLowerCase().includes(search.toLowerCase()) || o.id.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (o.user?.name || '').toLowerCase().includes(search.toLowerCase()) || String(o.id).toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || o.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  if (loading) return <div>Loading orders...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div className="space-y-6">
@@ -38,7 +58,6 @@ function AdminOrders() {
         <p className="text-muted-foreground mt-1">Manage and track all orders</p>
       </div>
 
-      {/* Filters */}
       <div className="glass-strong rounded-2xl p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--glass)" }}>
@@ -68,7 +87,6 @@ function AdminOrders() {
         </div>
       </div>
 
-      {/* Orders Table */}
       <div className="glass-strong rounded-2xl overflow-hidden">
         <table className="w-full">
           <thead>
@@ -85,9 +103,9 @@ function AdminOrders() {
             {filtered.map((order) => (
               <tr key={order.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
                 <td className="px-6 py-4 text-sm font-medium">{order.id}</td>
-                <td className="px-6 py-4 text-sm">{order.customer}</td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{order.date}</td>
-                <td className="px-6 py-4 text-sm font-medium">${order.amount}</td>
+                <td className="px-6 py-4 text-sm">{order.user?.name}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</td>
+                <td className="px-6 py-4 text-sm font-medium">${order.total}</td>
                 <td className="px-6 py-4 text-sm">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[order.status] || ""}`}>
                     {order.status}

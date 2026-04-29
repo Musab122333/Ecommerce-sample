@@ -1,16 +1,26 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Star, ShoppingBag, Check, ArrowLeft } from "lucide-react";
 import { useState } from "react";
-import { getProduct, products } from "@/lib/products";
 import { useCart } from "@/lib/cart";
 import { ProductCard } from "@/components/ProductCard";
 import { toast } from "sonner";
+import { productsAPI } from "@/lib/api/client";
 
 export const Route = createFileRoute("/product/$id")({
-  loader: ({ params }) => {
-    const product = getProduct(params.id);
-    if (!product) throw notFound();
-    return { product };
+  loader: async ({ params }) => {
+    try {
+      const res: any = await productsAPI.getById(params.id);
+      const product = res?.data;
+      if (!product) throw notFound();
+
+      // fetch related products by category
+      const relatedRes: any = await productsAPI.getAll({ category: product.category, take: 4 });
+      const related = (relatedRes?.data?.products || []).filter((p: any) => p.id !== product.id).slice(0, 3);
+
+      return { product, related };
+    } catch (err) {
+      throw notFound();
+    }
   },
   head: ({ loaderData }) => ({
     meta: loaderData
@@ -34,10 +44,10 @@ export const Route = createFileRoute("/product/$id")({
 });
 
 function ProductPage() {
-  const { product } = Route.useLoaderData();
+  const { product, related } = Route.useLoaderData();
   const { add } = useCart();
   const [added, setAdded] = useState(false);
-  const related = products.filter((p) => p.id !== product.id).slice(0, 3);
+  // related is provided by the loader
 
   const handleAdd = () => {
     add(product);

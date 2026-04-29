@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { adminAPI } from "@/lib/api/client";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsers,
@@ -8,17 +10,35 @@ export const Route = createFileRoute("/admin/users")({
 
 function AdminUsers() {
   const [search, setSearch] = useState("");
+  const { token } = useAuth();
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const users = [
-    { id: "1", name: "John Doe", email: "john@example.com", orders: 5, spent: "$1,249.99", joined: "2024-01-01" },
-    { id: "2", name: "Jane Smith", email: "jane@example.com", orders: 3, spent: "$759.99", joined: "2024-01-05" },
-    { id: "3", name: "Bob Johnson", email: "bob@example.com", orders: 1, spent: "$129.99", joined: "2024-01-10" },
-  ];
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!token) return;
+      try {
+        setLoading(true);
+        const res: any = await adminAPI.getUsers(token);
+        setUsers(res.data.users || []);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load users');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [token]);
 
   const filtered = users.filter(u =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
+    (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  if (loading) return <div>Loading users...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div className="space-y-6">
@@ -27,7 +47,6 @@ function AdminUsers() {
         <p className="text-muted-foreground mt-1">Manage customer accounts</p>
       </div>
 
-      {/* Search */}
       <div className="glass-strong rounded-2xl p-6">
         <div className="flex items-center gap-2 rounded-lg px-4 py-2" style={{ background: "var(--glass)" }}>
           <Search className="h-5 w-5 text-muted-foreground" />
@@ -41,7 +60,6 @@ function AdminUsers() {
         </div>
       </div>
 
-      {/* Users Table */}
       <div className="glass-strong rounded-2xl overflow-hidden">
         <table className="w-full">
           <thead>
@@ -59,9 +77,9 @@ function AdminUsers() {
               <tr key={user.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
                 <td className="px-6 py-4 text-sm font-medium">{user.name}</td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">{user.email}</td>
-                <td className="px-6 py-4 text-sm">{user.orders}</td>
-                <td className="px-6 py-4 text-sm font-medium">{user.spent}</td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{user.joined}</td>
+                <td className="px-6 py-4 text-sm">{user._count?.orders || 0}</td>
+                <td className="px-6 py-4 text-sm font-medium">${user.totalSpent || 0}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-sm">
                   <button className="text-primary hover:underline">View</button>
                 </td>
